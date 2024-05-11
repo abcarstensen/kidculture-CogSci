@@ -1,0 +1,222 @@
+
+
+```{r}
+library(googlesheets4)
+library(here)
+library(tidyverse)
+library(googledrive)
+
+drive_auth(email = "anjiecao@stanford.edu") # gets a suitably scoped token
+                                           # and stashes for googledrive use
+
+gs4_auth(token = drive_token())            # registers token with googlesheets4
+
+```
+
+# US data 
+
+## Read in the tab 
+
+```{r}
+raw_tab <- range_read(ss = "https://docs.google.com/spreadsheets/d/1nhIK803fCtdt3FAWqW4tiYPKdUqq77YYUOCMV1G9zPw/edit#gid=1857277250", sheet = "FDcoding")
+
+
+```
+
+
+look at redundant 
+
+```{r}
+
+redundant_subject <- raw_tab %>% 
+  distinct(subject_id, coder) %>% 
+  group_by(subject_id) %>% 
+  count() %>% 
+  filter(n > 1) %>% pull(subject_id)
+
+
+nr_tab <- raw_tab %>% 
+  filter((subject_id %in% redundant_subject & coder != "Qi") | !(subject_id %in% redundant_subject)) %>% 
+  filter((subject_id %in% c("E_012", "E_013") & coder == "Minh") | !(subject_id %in% c("E_012", "E_013")))
+
+```
+
+
+## format the sheet 
+
+```{r}
+formated_sheet <- nr_tab %>% 
+  select(subject_id, task_number, task_type, trial_number, timestamp, raw_response, coder, full_desc_coder) %>% 
+  mutate(
+    first_mention = "", 
+    simple_desc = "", 
+    number = "", 
+    attributes = "", 
+    feeling = "", 
+    behavior = "", 
+    location = "", 
+    relation_to_moveable = "", 
+    relation_to_inert = "", 
+    time = ""
+  ) %>% 
+  pivot_longer(
+    cols = c("first_mention", "simple_desc", "number", "attributes", "feeling", "behavior", 
+             "location", "relation_to_moveable", "relation_to_inert", "time"), 
+    names_to = "response_type"
+  ) %>% 
+  mutate(focal_count = 0, 
+        objects_count = 0, 
+         background_count = 0, 
+         ambig_count = 0, 
+         coder = full_desc_coder) %>% 
+  select(subject_id, task_number, task_type, trial_number, response_type, 
+         focal_count, objects_count, background_count, ambig_count, raw_response, coder) %>% 
+  mutate(
+    raw_response = case_when(
+      response_type == "first_mention" ~ raw_response, 
+      TRUE ~ ""
+    )
+  )
+
+
+```
+
+
+## transfer the coded things from the M&N coded sheet
+
+```{r}
+coded_tab <- range_read(ss = "https://docs.google.com/spreadsheets/d/1nhIK803fCtdt3FAWqW4tiYPKdUqq77YYUOCMV1G9zPw/edit#gid=1857277250", sheet = "M&N FD coding")
+
+
+```
+```{r}
+# this is to get the unlist to handle null
+raw_response <- coded_tab$raw_response
+raw_response[sapply(raw_response, is.null)] <- NA
+coded_tab$raw_response <- unlist(raw_response)
+
+
+clean_coded_tab <- coded_tab %>% 
+  rename(focal_count_coded = focal_count, 
+         objects_count_coded = objects_count, 
+         background_count_coded = background_count, 
+         ambig_count_coded = ambig_count, 
+         raw_response_coded = raw_response, 
+         coder_coded = full_desc_coder) %>% 
+  mutate(task_type = "FD") %>% 
+  select(-task_number)
+
+clean_coded_tab
+```
+
+
+```{r}
+generated_sheet <- formated_sheet %>% 
+  left_join(clean_coded_tab, by = c("subject_id", "task_type", 
+                                    "trial_number", "response_type")) %>% 
+  mutate(focal_count = if_else(is.na(focal_count_coded), focal_count, focal_count_coded), 
+         objects_count = if_else(is.na(objects_count_coded), objects_count, objects_count_coded), 
+         background_count = if_else(is.na(background_count_coded), background_count, background_count_coded), 
+        ambig_count = if_else(is.na(ambig_count_coded), ambig_count, ambig_count_coded), 
+        raw_response = if_else(is.na(raw_response_coded), raw_response, raw_response_coded), 
+         full_descp_code = if_else(is.na(coder_coded), coder, coder_coded)) %>% 
+  select(subject_id, task_number, task_type, trial_number, response_type, 
+         focal_count, objects_count, background_count, ambig_count, raw_response, full_descp_code)
+```
+
+
+```{r}
+generated_sheet %>% range_write(ss = "https://docs.google.com/spreadsheets/d/1nhIK803fCtdt3FAWqW4tiYPKdUqq77YYUOCMV1G9zPw/edit#gid=1857277250", sheet = "M&N FD generated")
+```
+
+# CN data
+
+
+
+```{r}
+raw_cn_tab <- range_read(ss = "https://docs.google.com/spreadsheets/d/1nhIK803fCtdt3FAWqW4tiYPKdUqq77YYUOCMV1G9zPw/edit#gid=1857277250", sheet = "CN")
+
+```
+
+
+```{r}
+raw_tab <- raw_cn_tab %>% 
+  filter(task_type == "FD") %>% 
+  filter(grepl("M", subject_id) & subject_id != "M_000") 
+
+```
+
+## find redundant coding 
+
+```{r}
+redundant_coded <- raw_tab %>% 
+  distinct(subject_id, coder) %>% 
+  group_by(subject_id) %>% 
+  count() %>% 
+  filter(n == 2)
+
+redundant_coded %>% 
+  mutate(
+    chosen_coder = case_when(
+      subject_i
+    )
+  )
+```
+
+
+“我看到了一个船在一个河上，然后有个电线，然后看到一个走上去的斜坡，然后好多房子，然后船在很远的地方”
+M_041 - Yichun 
+
+
+## currently ignoring redundant code
+
+```{r}
+#raw_response <- raw_tab$raw_response
+#raw_response[sapply(raw_response, is.null)] <- NA
+#raw_tab$raw_response <- unlist(raw_response)
+
+
+generated_tab <- raw_tab %>% 
+  filter(!(subject_id %in% redundant_coded$subject_id)) %>% 
+  mutate(trial_number = unlist(trial_number), 
+         raw_response = unlist(raw_response)) %>% 
+  select(subject_id, task_number, task_type, trial_number, timestamp, raw_response, coder) %>% 
+  mutate(
+    first_mention = "", 
+    simple_desc = "", 
+    number = "", 
+    attributes = "", 
+    feeling = "", 
+    behavior = "", 
+    location = "", 
+    relation_to_moveable = "", 
+    relation_to_inert = "", 
+    time = ""
+  ) %>% 
+  pivot_longer(
+    cols = c("first_mention", "simple_desc", "number", "attributes", "feeling", "behavior", 
+             "location", "relation_to_moveable", "relation_to_inert", "time"), 
+    names_to = "response_type"
+  ) %>% 
+  mutate(focal_count = 0, 
+        objects_count = 0, 
+         background_count = 0, 
+         ambig_count = 0) %>% 
+  select(subject_id, task_number, task_type, trial_number, response_type, 
+         focal_count, objects_count, background_count, ambig_count, raw_response, coder) %>% 
+  mutate(
+    raw_response = case_when(
+      response_type == "first_mention" ~ raw_response, 
+      TRUE ~ ""
+    )
+  )
+
+generated_tab %>% range_write(ss = "https://docs.google.com/spreadsheets/d/1nhIK803fCtdt3FAWqW4tiYPKdUqq77YYUOCMV1G9zPw/edit#gid=1857277250", sheet = "M&N FD generated CN")
+
+```
+
+
+```{r}
+
+```
+

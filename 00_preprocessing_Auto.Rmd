@@ -1,0 +1,238 @@
+---
+title: "00_preprocessing_auto"
+author: "anjie"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+```{r}
+library(tidyverse)
+library(here)
+library(jsonlite)
+
+source(here("helper/combine_and_trim.R"))
+source(here("helper/get_demog.R"))
+
+```
+
+
+# Merge & Trim 
+
+DO NOT RUN (raw files do not live on github repo)
+
+```{r eval=FALSE, include=FALSE}
+
+cn_auto_d_row <- count_rows_for_files(here("data/00_raw_data/auto/data_M/"))
+us_auto_d_row <- count_rows_for_files(here("data/00_raw_data/auto/data_E/"))
+cn_auto_d <- trim_data(cn_auto_d_row, min_row = 15)
+us_auto_d <- trim_data(us_auto_d_row, min_row = 15)
+
+write_csv(cn_auto_d, here("data/00_raw_data/auto/raw_M.csv"))
+write_csv(us_auto_d, here("data/00_raw_data/auto/raw_E.csv"))
+
+```
+
+
+
+# Get file created time 
+
+```{r}
+raw_files <- c(
+  str_c(here("data/00_raw_data/auto/data_E/"), dir(here("data/00_raw_data/auto/data_E/"), "*.csv")),
+  str_c(here("data/00_raw_data/auto/data_M/"), dir(here("data/00_raw_data/auto/data_M/"), "*.csv"))
+  
+)
+  
+auto_file_date_df <- tibble(
+  raw_file_paths = raw_files
+) %>% 
+  rowwise() %>% 
+  mutate(
+    subject_id = gsub("-", "", gsub(".csv", "",regmatches(raw_file_paths, gregexpr("-([^.]+)\\.csv", raw_file_paths, perl=FALSE))[[1]])), 
+    created_date = file.info(raw_file_paths)$mtime
+  )
+
+
+write_csv(auto_file_date_df, here("data/01_processed_data/auto_file_date.csv"))
+
+```
+
+
+
+# Get Clean Demog
+
+```{r}
+cn_auto_d <- read_csv(here("data/00_raw_data/auto/raw_M.csv"))
+us_auto_d <- read_csv(here("data/00_raw_data/auto/raw_E.csv"))
+
+
+cn_clean_demog <- lapply(na.omit(unique(cn_auto_d$subject)), function(x){
+  print(x)
+  get_tidy_demog(cn_auto_d %>% filter(subject == x))
+}) %>% 
+  bind_rows()
+
+
+us_clean_demog <- lapply(na.omit(unique(us_auto_d$subject)), function(x){
+  print(x)
+  get_tidy_demog(us_auto_d %>% filter(subject == x))
+}) %>% 
+  bind_rows()
+
+write_csv(cn_clean_demog, here("data/01_processed_data/auto/demog_M.csv"))
+write_csv(us_clean_demog, here("data/01_processed_data/auto/demog_E.csv"))
+
+```
+
+
+# Get Exclusion 
+
+```{r}
+cn_auto_d <- read_csv(here("data/00_raw_data/auto/raw_M.csv"))
+us_auto_d <- read_csv(here("data/00_raw_data/auto/raw_E.csv"))
+
+cn_demog_d <-  read_csv(here("data/01_processed_data/auto/demog_M.csv"))
+us_demog_d <-  read_csv(here("data/01_processed_data/auto/demog_E.csv"))
+
+```
+## RMTS side bias
+
+
+```{r}
+side_bias_df <- bind_rows(
+  cn_auto_d %>% mutate(culture = "CN"), 
+  us_auto_d %>% mutate(culture = "US")
+) %>% 
+  filter(trial_type == "rmts-test") %>% 
+  group_by(subject, choice) %>% 
+  count() %>% 
+  filter(n == 4) %>%
+  ungroup() %>% 
+  select(subject) %>% 
+  mutate(ex_reason = "side_bias")
+ 
+```
+
+
+## Regions lived more than 6 months at age 2 
+
+ "<b>你曾在下列哪个（些）地区居住过两年及以上？请选择所有适用的选项。</b>"
+ ["北美洲","南美洲", "欧洲", "非洲", "亚洲", "澳洲", "其它"]
+ 
+ "<b>Which region(s) have you lived in for at least 2 years? Check all that apply.</b>"
+ ["North America","South America", "Europe", "Africa", "Asia", "Australia", "Other"]
+
+```{r}
+
+live_abroad_df <- bind_rows(
+  cn_demog_d %>% mutate(culture = "CN"), 
+  us_demog_d %>% mutate(culture = "US")
+) %>% 
+  filter(demog_question == "which_regions") %>% 
+  filter(demog_response %in% c("北美洲", "南美洲",  "欧洲", "澳洲", 
+                                "Asia")) %>% 
+  select(subject, id) %>% 
+  mutate(ex_reason = "living_abroad")
+
+
+
+```
+
+## language speaking & understanding
+
+
+
+```{r}
+
+language_df <- bind_rows(
+  cn_demog_d %>% mutate(culture = "CN"), 
+  us_demog_d %>% mutate(culture = "US")
+) %>% 
+  filter(demog_question == "Q0" | demog_question == "Q1") %>% 
+  filter(demog_response >= 3) %>%  
+  select(subject, id) %>% 
+  mutate(ex_reason = "language")
+```
+
+## from notes 
+
+```{r}
+extra_df <- tibble(
+  ex_reason = c("ASD", "repeat_run", "missed_session","tech_error"), 
+  subject = c(NA, NA, NA, NA),
+  id = c("E111", "E98", "E23", "E88")
+)
+```
+
+
+
+## put everything together 
+
+```{r}
+exclusion_table <- bind_rows(side_bias_df, live_abroad_df, language_df, extra_df)
+
+write_csv(exclusion_table, here("data/01_processed_data/exclusion_table.csv"))
+```
+
+
+## link with the existing demog
+
+```{r}
+
+exclusion_table <- read_csv(here("data/01_processed_data/exclusion_table.csv"))
+
+cn_hand_data <- read_csv(here("data/00_raw_data/hand_coded/cn_data.csv"))
+us_hand_data <- read_csv(here("data/00_raw_data/hand_coded/us_data.csv"))
+hand_demog <- read_csv(here("data/00_raw_data/hand_coded/demog_data.csv")) %>% 
+  janitor::clean_names()
+
+
+hand_data_with_age <- bind_rows(cn_hand_data %>% mutate(culture = "CN"), us_hand_data %>% mutate(culture = "US")) %>% 
+  mutate(subject_id = str_replace_all(subject_id, c("_00"='', "_0"='', "E_"='E', "M_"='M'))) %>%
+  left_join(hand_demog %>% rename(subject_id = subject_id_orig)) %>% 
+  filter(years < 10)
+
+
+exclusion_from_auto <- exclusion_table %>% 
+  filter(!is.na(id)) %>% 
+  filter(grepl("M", id) | grepl("E", id)) %>% 
+  mutate(country = case_when(
+    grepl("M", id) ~ "CN", 
+    grepl("E", id) ~ "US"
+  )) %>% 
+  distinct( ex_reason, id, country)
+
+
+exclusion_with_missing_file <- exclusion_table %>% 
+  filter(is.na(id)) %>% 
+  distinct(subject, ex_reason)
+
+```
+
+# check trigger condition 
+
+```{r}
+
+# calculate how many in each 
+
+
+subject_n = hand_data_with_age %>% 
+  distinct(subject_id, culture) %>% 
+  group_by(culture) %>% 
+  count() %>% 
+  rename(total_n= n, country = culture)
+
+# calculate how many excluded 
+
+exclusion_from_auto %>% 
+  group_by(country, ex_reason) %>% 
+  count() %>% 
+  left_join(subject_n, by = "country") %>% 
+  mutate(percent = n / total_n)
+
+exclusion_with_missing_file
+
+```
+
+

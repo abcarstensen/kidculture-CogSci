@@ -1,0 +1,936 @@
+---
+title: "kidculture analysis"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(readxl)
+require(stringr)
+require(ggpubr)
+require(lme4)
+require(tidyverse)
+require(ggplot2)
+require(here)
+```
+
+## Load data
+
+```{r load-data, echo=F}
+# view sheets
+#readxl::excel_sheets("data/data_22Jan2023.xlsx") <-final data from last year
+readxl::excel_sheets("data/data_18Jan2024.xlsx")
+
+d_us <- read_xlsx("data/data_18Jan2024.xlsx", sheet="US")
+d_cn <- read_xlsx("data/data_18Jan2024.xlsx", sheet="CN")
+demog <- read_xlsx("data/data_18Jan2024.xlsx", sheet="demog") #just age in months, gender
+
+fd_us <- read_xlsx("data/data_18Jan2024.xlsx", sheet="M&N FD generated CN")
+fd_cn <- read_xlsx("data/data_18Jan2024.xlsx", sheet="M&N FD generated")
+```
+
+
+```{r, echo=FALSE}
+#make main data, with everything but full FD coding (a la Masuda & Nisbett)
+d <- d_us %>% dplyr::select(subject_id, task_type, trial_number, coder,
+                     `responses (can also be NC, non-codeable)`) %>%
+  mutate(country = "US") %>% 
+  bind_rows(d_cn %>% dplyr::select(subject_id, task_type, trial_number, coder,
+                     `responses (can also be NC, non-codeable)`) %>%
+  mutate(country = "CN")) %>%
+  rename(resp = `responses (can also be NC, non-codeable)`) %>%
+  mutate(subject_id = str_replace_all(subject_id, c("_00"='', "_0"='', "E_"='E', "M_"='M'))) %>%
+  left_join(demog) %>%
+  mutate(months=replace_na(months,0)) %>%
+  mutate(age = years * 12 + months) %>%
+  #dplyr::select(-months) %>%
+  filter(!is.na(subject_id))
+
+#REMOVE REDUNDANT ENTRIES (when same kid coded more than once)
+d$coder_index = NA #all coders set as NA, next we'll count them
+for(s in unique(d$subject_id)) { #for each redundantly coded kid,
+  sub_inds = which(d$subject_id==s) #get row nums for kid
+  coders = unique(d[sub_inds,]$coder) #get coder names
+  for(i in 1:length(coders)) {
+    d[which(d$subject_id==s & d$coder==coders[i]),]$coder_index = (length(coders)+1)-i #number coders in reverse
+  }
+}
+
+d <- d %>% filter(coder_index==1) #remove redundant entries (always retain the most recent coder)
+# sort(table(d$subject_id)) #check if there are redundancies; length should be 14
+
+#are any ppts are missing ages?
+length(unique(d_us$subject_id)) # 122
+length(unique(d_cn$subject_id)) # 101
+#122+101 = 223 coded ppts
+length(unique(d$subject_id)) # 220 after the joins, so 2 are missing from age list?
+
+d_old <- subset(d, years>=10) # 57 kids from older group. who's missing? should be 38 US / 22 CN = 60
+
+d <- d %>% filter(!is.na(age)) 
+length(unique(d$subject_id)) # 220 (no age=na)
+
+#make full FD tbl (a la Masuda & Nisbett)
+fd <- fd_us %>% dplyr::select(subject_id, task_type, trial_number, response_type,
+                     focal_count, objects_count, background_count, ambig_count, full_desc_coder) %>%
+  mutate(country = "US") %>% 
+  bind_rows(fd_cn %>% dplyr::select(subject_id, task_type, trial_number, response_type,
+                     focal_count, objects_count, background_count, ambig_count, full_desc_coder) %>%
+  mutate(country = "CN")) %>%
+  mutate(subject_id = str_replace_all(subject_id, c("_00"='', "_0"='', "E_"='E', "M_"='M'))) %>%
+  left_join(demog) %>%
+  mutate(months=replace_na(months,0)) %>%
+  mutate(age = years * 12 + months) %>%
+  dplyr::select(-months) %>% #delete these columns
+  filter(!is.na(subject_id)) %>%
+  filter(task_type=="FD")
+
+
+#REMOVE REDUNDANT ENTRIES (when same kid coded more than once)
+fd$coder_index = NA #all coders set as NA, next we'll count them
+for(s in unique(fd$subject_id)) { #for each redundantly coded kid,
+  sub_inds = which(fd$subject_id==s) #get row nums for kid
+  coders = unique(fd[sub_inds,]$full_desc_coder) #get coder names
+  for(i in 1:length(coders)) {
+    fd[which(fd$subject_id==s & fd$full_desc_coder==coders[i]),]$coder_index = (length(coders)+1)-i #number coders in reverse
+  }
+}
+
+fd <- fd %>% filter(coder_index==1) #remove redundant entries (always retain the most recent coder)
+# sort(table(fd$subject_id)) #check if there are redundancies; length should be 70
+
+```
+
+Loaded demographic data from `r length(unique(demog$subject_id))` participants.
+Loaded coded data from `r length(unique(d$subject_id))` participants.
+
+Age breakdown:
+
+```{r}
+
+#d %>% distinct(subject_id, country) %>% group_by(country) %>% count() %>% saveRDS(here("cached_data/demog_raw_country.Rds"))
+
+d %>% group_by(subject_id, years, country) %>%
+  summarise(n=n()) %>%
+  group_by(years, country) %>%
+  summarise(n=n())
+
+#quick counts
+youngUS <- d %>% filter(years<7,country=="US") %>% distinct(subject_id) # 39
+midUS <- d %>% filter(years>=7 & years<10,country=="US") %>% distinct(subject_id) # 45 (was 43)
+oldUS <- d %>% filter(years>=10,country=="US") %>% distinct(subject_id) # 37
+
+youngCN <- d %>% filter(years<7,country=="CN") %>% distinct(subject_id) # 41 (was 42)
+midCN <- d %>% filter(years>=7 & years<10,country=="CN") %>% distinct(subject_id) # 38
+oldCN <- d %>% filter(years>=10,country=="CN") %>% distinct(subject_id) # 20
+
+#US ppt lists
+youngUS <- d %>% filter(years<7,country=="US")
+youngUS = unique(youngUS$subject_id)
+
+midUS <- d %>% filter(years>=7 & years<10,country=="US")
+midUS = unique(midUS$subject_id)
+
+oldUS <- d %>% filter(years>=10,country=="US")
+oldUS = unique(oldUS$subject_id)
+
+#CN ppt lists
+youngCN <- d %>% filter(years<7,country=="CN")
+youngCN = unique(youngCN$subject_id)
+
+midCN <- d %>% filter(years>=7 & years<10,country=="CN")
+midCN = unique(midCN$subject_id)
+
+oldCN <- d %>% filter(years>=10,country=="CN")
+oldCN = unique(oldCN$subject_id)
+
+```
+## exclusions
+
+```{r}
+
+subjectExcludes <- read_csv("data/01_processed_data/exclusion_table_linked.csv") %>%
+  filter(!is.na(id))
+
+#make sideBias list for RMTS exclusions
+sideBias <- subjectExcludes %>% filter(ex_reason=="side_bias")
+
+#how many language exclusions from CN sample?
+langCN <- subjectExcludes %>% filter(ex_reason=="language" & startsWith(id, "M"))
+
+#how many ppts in CN sample?
+totalCN <- d %>% filter(country=="CN")
+CNppts = unique(totalCN$subject_id)
+
+#if more than 20% of total CN sample would be excluded for language, drop CN lang exclusions (otherwise retain)
+if(nrow(langCN) / length(CNppts) > .2) {
+  idx = with(subjectExcludes, which(ex_reason=="language" & startsWith(id, "M")))
+  subjectExcludes = subjectExcludes[-idx,]
+}
+
+#remove the side bias exclusion rows so subjectExcludes contains only ppts who should be FULLY excluded for demog reasons
+subjectExcludes <- subjectExcludes %>% filter(ex_reason!="side_bias")
+
+length(unique(d$subject_id)) #221
+
+d <- d %>% filter(!is.element(subject_id, subjectExcludes$id))
+
+length(unique(d$subject_id)) #205
+
+#make language category that distinguishes between CN ppts who are/are not bilingual in English
+d <- d %>% mutate(language=ifelse(is.element(subject_id, langCN$id), "CN_ENG", country))
+
+
+d %>% distinct(subject_id, age, country) %>% 
+  filter(age <= 48) %>% 
+  group_by(country) %>% 
+  count() %>% saveRDS(here("cached_data/demog_youngkids.Rds"))
+
+d %>% distinct(subject_id, gender, country) %>% 
+  group_by(country, gender) %>% 
+  count() %>% 
+  saveRDS(here("cached_data/demog_gender.Rds"))
+
+d %>% group_by(subject_id, language) %>%
+  summarise(n=n()) %>%
+  group_by(language) %>%
+  summarise(n=n())
+```
+
+```{r}
+d %>% filter(gender == "NA")
+```
+
+
+## RMTS
+
+```{r}
+#results summary: 
+### all 4 trials: no effect of country, both near chance in youngest children, then move to ~75% performance between 60 and 100m, then track back to chance for the oldest kids, matching adult performance
+### first trial: performance looks a little different by country, still no effect in main regression but fit is polynomial for US and not for CN. Eng bilinguals in CN are qualitatively very similar to US and unlike CN monolinguals
+
+d_rmts <- d %>% filter(task_type=="RMTS") 
+
+#clean up resp coding
+d_rmts[which(d_rmts$resp=="relational"),]$resp = "relation"
+d_rmts[which(d_rmts$resp=="obejct"),]$resp = "object"
+d_rmts[which(d_rmts$resp=="n/a"),]$resp = NA
+d_rmts[which(d_rmts$resp=="NA"),]$resp = NA
+
+#check resp cleaning
+unique(d_rmts$resp)
+
+d_rmts <- d_rmts %>% 
+  mutate(object_score = ifelse(resp=="object", 1, 
+                             ifelse(resp=="relation", 0, NA)),
+         across(c(subject_id, country), as.factor),
+         trial_number = as.numeric(trial_number)) %>% 
+    mutate(age_sc = scale(age))
+
+#PREREG Ambiguous RMTS (logistic regression): choice ~ culture * age + (trial_num | subject). 
+m_rmts <- glmer(object_score ~ country * age_sc + (trial_number | subject_id), 
+                data = d_rmts,
+                family = "binomial") #singular
+
+m_rmts2 <- glmer(object_score ~ country * age_sc + (1 | subject_id), 
+                data = d_rmts,
+                family = "binomial") #only intercept
+summary(m_rmts2)
+
+#Because of concerns that children may (exploratorily) change their response strategy on later trials (2-4), we will also analyze first trial responding separately (logistic regression: choice ~ culture * age). If this first trials analysis produces results that differ significantly from our regression with all trials, we will rely on the first trial results for interpretation.
+m_rmts_first <- glm(object_score ~ country * age_sc,
+                      data = d_rmts %>% filter(trial_number == 1),
+                      family = "binomial") #only intercept
+
+summary(m_rmts_first)
+
+#post hoc exploratory, theoretically motivated
+#is there a curvilinear relationship bw age and performance?
+m_rmts_first_curve <- glm(object_score ~ country * poly(age_sc, 2),
+                      data = d_rmts %>% filter(trial_number == 1),
+                      family = "binomial") #polynomial trending
+summary(m_rmts_first_curve)
+
+#is there a curvilinear relationship bw age and performance in US? YES
+m_rmts_first_curve <- glm(object_score ~ poly(age_sc, 2),
+                      data = d_rmts %>% filter(trial_number == 1) %>% filter(country == "US"),
+                      family = "binomial") #poly(age_sc, 2)2
+summary(m_rmts_first_curve)
+
+#is there a curvilinear relationship bw age and performance in CN? NO
+m_rmts_first_curve <- glm(object_score ~ poly(age_sc, 2),
+                      data = d_rmts %>% filter(trial_number == 1) %>% filter(country == "CN"),
+                      family = "binomial") #polynomial trending
+summary(m_rmts_first_curve)
+
+# main plot megaplot
+d_rmts %>% filter(!is.na(object_score)) %>%
+  group_by(subject_id, country, age) %>%
+  summarise(mean = mean(object_score)) %>%
+  mutate(Country = country,
+         prop_relation = 1-mean) %>% #flips y axis
+  ggplot(aes(x=jitter(age,.1), y=prop_relation, group=Country, color=Country)) + 
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  xlab("Age in months") + ylab("Proportion choosing relational match") 
+ggsave("RMTS_all_trials.pdf", width=6, height=3)
+
+
+# main plot, CN bilinguals split out 
+d_rmts %>% filter(!is.na(object_score)) %>%
+  group_by(subject_id, language, age) %>%
+  summarise(mean = mean(object_score)) %>% 
+  mutate(prop_relation = 1-mean) %>% #flips y axis
+  ggplot(aes(x=jitter(age,.1), y=prop_relation, group=language, color=language)) + 
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  xlab("Age in months") + ylab("Proportion choosing relational match") 
+
+#first trial
+d_rmts1 <- d_rmts %>% filter(trial_number==1) 
+d_rmts1 %>% filter(!is.na(object_score)) %>%
+  group_by(subject_id, country, age) %>%
+  ggplot(aes(x=age, y=jitter((1-object_score),.1), group=country, color=country)) + #flips y axis
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  xlab("Age in months") + ylab("Relational matching on first trial") 
+
+#first trial, CN bilinguals split out 
+d_rmts1 %>% filter(!is.na(object_score)) %>%
+  group_by(subject_id, language, age) %>%
+  ggplot(aes(x=age, y=jitter((1-object_score),.1), group=language, color=language)) + #flips y axis
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  xlab("Age in months") + ylab("Relational matching on first trial") 
+
+#mean perf looks similar across countries, but first response seems to show an object bias in the youngest US ppts
+
+```
+
+### Writing cache 
+
+```{r}
+library(here)
+d_rmts %>% group_by(country) %>% summarise(mean_object_score = mean(object_score, na.rm = TRUE)) %>% mutate_if(is.numeric, round, 2) %>% saveRDS(here("cached_data/rmts_mean_all.Rds")) 
+
+d_rmts %>% group_by(country) %>% filter(trial_number == 1) %>% summarise(mean_object_score = mean(object_score, na.rm = TRUE)) %>% mutate_if(is.numeric, round, 2) %>% saveRDS(here("cached_data/rmts_mean_first_trial.Rds")) 
+
+
+broom.mixed::tidy(m_rmts_first_curve) %>% mutate_if(is.numeric, round, 2) %>%  saveRDS(here("cached_data/rmts_explore_model.Rds")) 
+```
+
+
+
+## Free Description, first mention
+
+```{r}
+#results summary: effect of country, US more focal, but both groups are quite biased toward focal. In language split plot, mono CN participants start veering toward the adult pattern at about 120 months
+
+#clean up main FD data
+d_fd <- d %>% filter(task_type=="FD")
+d_fd[which(d_fd$resp=="NA"),]$resp = NA
+d_fd[which(d_fd$resp=="N/A"),]$resp = NA
+d_fd[which(d_fd$resp=="n/a"),]$resp = NA
+d_fd[which(d_fd$resp=="Focal"),]$resp = "focal"
+
+#check resp cleaning
+unique(d_fd$resp)
+
+d_fd <- d_fd %>% 
+  mutate(focal_score = ifelse(resp=="focal", 1, 
+                             ifelse(resp=="background", 0, NA))) %>% 
+  mutate(age_sc = scale(age))
+
+#PREREG: (a, logistic regression) first_mention ~ culture * age + (1 | subject) + (culture | scene)
+#(b, Poisson regression) description_num ~ description_type * culture * age + (description_type | subject) + (culture | scene)
+m_fd1 <- glmer(focal_score ~ country * age_sc + (1 | subject_id) + (country | trial_number),
+              data = d_fd,
+              family = "binomial") #singular
+m_fd2 <- glmer(focal_score ~ country * age_sc + (1 | subject_id) + (1 | trial_number),
+              data = d_fd,
+              family = "binomial") #effect of country, US more focal mentions
+summary(m_fd2)
+
+
+# main plot megaplot
+d_fd %>% filter(!is.na(focal_score)) %>%
+  group_by(subject_id, country, age) %>%
+  summarise(mean_focal = mean(focal_score)) %>%
+  mutate(Country = country) %>%
+  ggplot(aes(x=age, y=mean_focal, group=Country, color=Country)) + 
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  ylim(0,1) + xlab("Age in months") + ylab("Proportion first mention focal")
+ggsave("FD_firstMention.pdf", width=6, height=3)
+
+# split out Eng bilinguals from CN
+d_fd %>% filter(!is.na(focal_score)) %>%
+  group_by(subject_id, language, age) %>%
+  summarise(mean_focal = mean(focal_score)) %>%
+  ggplot(aes(x=age, y=mean_focal, group=language, color=language)) + 
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  ylim(0,1) + xlab("Age in months") + ylab("Proportion first mention focal")
+
+```
+
+```{r}
+# finding the effect size
+
+m_fd2 <- glmer(focal_score ~ country * age_sc + (1 | subject_id) + (1 | trial_number),
+              data = d_fd,
+              family = "binomial") #
+
+varcor_df <- summary(m_fd2)$varcor %>% 
+  as.data.frame() %>% 
+  filter(is.na(var2))
+
+pooled_var <- sqrt(sum(varcor_df$vcov)) 
+fixed_effect_df <- summary(m_fd2)$coefficients %>% 
+    as.data.frame() %>% rownames_to_column("term_name") 
+
+estimate <- fixed_effect_df %>% 
+      filter(term_name == "countryUS") %>% 
+      pull(Estimate)
+
+smd <- estimate / pooled_var
+
+
+```
+
+
+
+#### writing cache 
+
+```{r}
+d_fd %>% group_by(country) %>% summarise(mean_score = mean(focal_score, na.rm = TRUE)) %>% mutate_if(is.numeric, round, 2) %>% write_rds(here("cached_data/fd_first_mention_mean.Rds"))
+
+m_fd2 %>% broom.mixed::tidy() %>% mutate_if(is.numeric, round, 2) %>% write_rds(here("cached_data/fd_first_mention_model.Rds"))
+
+smd %>% write_rds(here("cached_data/fd_smd.Rds"))
+```
+
+
+## Free Description, full description
+
+```{r}
+#results summary: 
+
+#clean up M&N FD data
+fd[which(is.element(fd$focal_count, c("NA","na","n/a"))),] = NA
+fd[which(is.element(fd$objects_count, c("NA","na","n/a"))),] = NA
+fd[which(is.element(fd$background_count, c("NA","na","n/a"))),] = NA
+
+#check resp cleaning
+unique(fd$focal_count)
+unique(fd$objects_count)
+unique(fd$background_count)
+
+
+fd_full <- fd %>% 
+  mutate(focal_count = as.numeric(focal_count),
+         objects_count = as.numeric(objects_count),
+         background_count = as.numeric(background_count),
+         non_focal = objects_count + background_count,
+         age_sc = scale(age)) %>% 
+  filter(response_type!="first_mention") #remove first mention coding since we looked at that above
+
+
+#PREREG: (b, Poisson regression) description_num ~ description_type * culture * age + (description_type | subject) + (culture | scene)
+#description_num = per-trial count of descriptions referring to the focal object vs. anything else
+
+fd_sum <- fd_full %>%
+  filter(!is.element(response_type,c("location", "relation_to_moveable", "relation_to_inert", "time"))) %>%
+  group_by(subject_id, trial_number, country, age_sc, age) %>%
+  summarise(focal = sum(focal_count),
+            non_focal = sum(non_focal)) %>%
+  pivot_longer(cols = c("focal","non_focal"), names_to = "desc_type", values_to = "desc_num")
+
+
+# m_fdb <- glmer(desc_num ~ desc_type * country * age_sc + (desc_type | subject_id) + (country | trial_number),
+#               data = fd_sum,
+#               family = "poisson") ##isSingular
+
+# m_fdb <- glmer(desc_num ~ desc_type * country * age_sc + (1 | subject_id) + (country | trial_number),
+#               data = fd_sum,
+#               family = "poisson") ##isSingular
+
+m_fdb <- glmer(desc_num ~ desc_type * country * age_sc + (desc_type | subject_id) + (1 | trial_number),
+              data = fd_sum,
+              family = "poisson")
+
+summary(m_fdb)
+
+# full data plot:
+fd_sum %>% filter(!is.na(desc_num)) %>%
+  group_by(subject_id, country, age_sc, age, desc_type) %>%
+  summarise(mean_desc_num = mean(desc_num)) %>%
+  mutate(Country = country) %>% 
+  ggplot(aes(x=age, y=mean_desc_num, group=desc_type, color=desc_type)) + 
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  facet_wrap(. ~ Country) +
+  xlab("Age in months") + ylab("Number of descriptions")
+
+# proportion plot (easier to interpret):
+fd_full %>% #filter(!is.na(focal_prop)) %>%
+  group_by(subject_id, country, age_sc, age) %>%
+  summarise(focal = sum(focal_count),
+            non_focal = sum(non_focal),
+            focal_prop = focal/(focal+non_focal)) %>%
+  mutate(Country = country) %>% 
+  ggplot(aes(x=age, y=focal_prop, group=Country, color=Country)) + 
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  xlab("Age in months") + ylab("Proportion focal descriptions")
+
+# split out Eng bilinguals from CN?
+
+```
+
+```{r}
+m_fdb  %>% broom.mixed::tidy() %>% mutate_if(is.numeric, round, 2)
+```
+
+
+## Causal Attribution
+
+```{r, causal-attribution}
+d_ca <- d %>% filter(task_type=="CA")
+
+d_ca[which(d_ca$resp=="0"),]$resp = "scared"
+d_ca[which(d_ca$resp=="personal"),]$resp = "person"
+d_ca[which(d_ca$resp=="NA"),]$resp = NA
+d_ca[which(d_ca$resp=="n/a"),]$resp = NA
+
+#check resp cleaning 
+unique(d_ca$resp) #22jan24 cleaning needed
+
+d_ca <- d_ca %>% # filter(!is.na(resp)) %>%
+  mutate(n_person = str_count(d_ca$resp, "person"),
+         n_situation = str_count(d_ca$resp, "situation"),
+         n_scared = str_count(d_ca$resp, "scared")) %>%
+  mutate(person_focus = n_person - n_situation,
+         person_scared = n_person + n_scared - n_situation,
+         person_prop = n_person/(n_person+n_situation),
+         situation_prop = n_situation/(n_person+n_situation)) %>%
+  mutate(age_sc = scale(age))
+
+d_ca$trial_number = as.numeric(d_ca$trial_number)
+
+#PREREG (Poisson regression): situation_attrib_num ~ culture * age + (1 | subject) + (culture | trial)
+m_ca <- glmer(n_situation ~ country * age_sc + (1 | subject_id) + (country | trial_number),
+              data = d_ca,
+              family = "poisson") #singular fit
+m_ca2 <- glmer(n_situation ~ country * age_sc + (1 | subject_id) + (1 | trial_number),
+              data = d_ca,
+              family = "poisson") #singular fit
+m_ca3 <- glmer(n_situation ~ country * age_sc + (1 | subject_id),
+              data = d_ca,
+              family = "poisson") #effect of country and age
+summary(m_ca3)
+
+#not in the prereg but seems like a useful complement (adult literature suggests similar person bias in US/CN but worth checking anyway)
+m_ca_person <- glmer(n_person ~ country * age_sc + (1 | subject_id) + (country | trial_number),
+              data = d_ca,
+              family = "poisson") #singular fit
+m_ca_person2 <- glmer(n_person ~ country * age_sc + (1 | subject_id) + (1 | trial_number),
+              data = d_ca,
+              family = "poisson") #singular fit
+m_ca_person3 <- glmer(n_person ~ country * age_sc + (1 | subject_id),
+              data = d_ca,
+              family = "poisson") 
+summary(m_ca_person3) #age (more person atts with age)
+
+#main plot, megaplot
+p1 <- d_ca %>% mutate(Country = country) %>%
+  ggplot(aes(x = age, y = jitter(person_prop), group = Country, color = Country)) +
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  xlab("Age in months") + ylab("Proportion person attributions") + 
+  theme(legend.position = "right")
+  #theme(legend.position = c(0.8, 0.2)) # more control (x,y = [0,1])
+ggsave("PersonAtt.pdf", width=6, height=3)
+
+p2 <- d_ca %>% mutate(Country = country) %>%
+  ggplot(aes(x = age, y = jitter(situation_prop), group = Country, color = Country)) +
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  xlab("Age in months") + ylab("Proportion situation attributions") + 
+  theme(legend.position = "right")
+  #theme(legend.position = c(0.8, 0.2)) # more control (x,y = [0,1])
+ggsave("SituationAtt.pdf", width=6, height=3)
+
+p1
+ggarrange(p1, p2, common.legend = T)
+
+#check how scared coding is working (person_scared = n_person + n_scared - n_situation)
+p3 <- d_ca %>% mutate(Country = country) %>%
+  ggplot(aes(x = age, y = jitter(person_scared), group = Country, color = Country)) +
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  xlab("Age (months)") + ylab("Person scared")
+p3
+
+#person focus (person_focus = n_person - n_situation)
+p4 <- d_ca %>% mutate(Country = country) %>%
+  ggplot(aes(x = age, y = jitter(person_focus), group = Country, color = Country)) +
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  xlab("Age (months)") + ylab("Person focus")
+
+p4 #doesn't really help with verbose kids
+```
+
+
+
+
+```{r, causal-attribution-2}
+#plot 2: instead plot n_person and n_situation
+p1 <- d_ca %>% ggplot(aes(x = age, y = jitter(n_person), group = country, color = country)) +
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  xlab("Age (months)") + ylab("N Person")
+
+p2 <- d_ca %>% ggplot(aes(x = age, y = jitter(n_situation), group = country, color = country)) +
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() + 
+  xlab("Age (months)") + ylab("N situation")
+
+ggarrange(p1, p2, common.legend = T)
+```
+
+
+```{r, causal-attribution-3, eval=FALSE}
+pl1 <- d_ca %>% ggplot(aes(x = age, y = jitter(person_focus), group = language, color = language)) +
+  geom_point(alpha=.5) + geom_smooth() + theme_classic()
+
+pl2 <- d_ca %>% ggplot(aes(x = age, y = jitter(person_scared), group = language, color = language)) +
+  geom_point(alpha=.5) + geom_smooth() + theme_classic()
+
+ggarrange(pl1, pl2, common.legend = T)
+```
+
+### writing cache 
+
+```{r}
+d_ca %>% group_by(country) %>% summarise(mean = mean(n_situation, na.rm = TRUE)) %>% mutate_if(is.numeric, round, 2) %>% saveRDS(here("cached_data/ca_situational_mean.Rds"))
+
+m_ca3 %>% broom.mixed::tidy() %>% mutate_if(is.numeric, round, 2) %>% saveRDS(here("cached_data/ca_model.Rds"))
+```
+
+
+## Uniqueness Preference
+
+```{r}
+d_up <- d %>% filter(task_type=="UP") 
+
+d_up[which(d_up$resp=="non_unique"),]$resp = "non-unique"
+d_up[which(d_up$resp=="n/a"),]$resp = NA
+d_up[which(d_up$resp=="NA"),]$resp = NA
+
+#check resp cleaning
+unique(d_up$resp)
+
+d_up <- d_up %>% 
+  mutate(unique = ifelse(resp=="unique", 1, 
+                             ifelse(resp=="non-unique", 0, NA))) %>% 
+  mutate(age_sc = scale(age))
+
+#PREREG (logistic regression): choice ~ culture * age
+m_up <- glm(unique ~ country * age_sc,
+            data = d_up,
+            family = "binomial") #sig effects of country (but in opposite direction, seems likely to be pragmatic helpfulness on the part of CN ppts--interesting result, but not the task we'd intended to run!)
+summary(m_up)
+
+#main plot megaplot
+d_up %>% filter(!is.na(unique)) %>%
+  mutate(Country = country) %>%
+  group_by(subject_id, country, age) %>%
+  ggplot(aes(x=age, y=jitter(unique,.2), group=Country, color=Country)) + 
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  ylim(0,1) + xlab("Age in months") + ylab("Preference for unique option") +
+  scale_y_continuous(limits = c(0,1.2), breaks= seq(0,1.2,.25))
+ggsave("Uniqueness.pdf", width=6, height=3)
+
+d_up %>% filter(!is.na(unique)) %>%
+  group_by(subject_id, language, age) %>%
+  ggplot(aes(x=age, y=jitter(unique,.2), group=language, color=language)) + 
+  geom_point(alpha=.5) + geom_smooth() + theme_classic()
+```
+
+### writing cache
+
+```{r}
+d_up %>% group_by(country) %>% summarise(mean = mean(unique, na.rm = TRUE)) %>% mutate_if(is.numeric, round, 2) %>% saveRDS(here("cached_data/up_mean.Rds"))
+
+m_up %>% broom.mixed::tidy() %>% mutate_if(is.numeric, round, 2) %>% saveRDS(here("cached_data/up_model.Rds"))
+```
+
+
+
+
+
+## Relationships between tasks
+From PREREG:
+2. How do cross-cultural differences relate across these tasks? In particular, do the social tasks (2-3) pattern together, showing more similar responses within than across domains?
+3. More specifically, do cross-cultural differences in visual attention (1) or reasoning about social relations (2-3) correlate with or mediate [country/age effect on] performance in relational reasoning (4)?
+
+```{r}
+#TLDR: nothing
+#merge cleaned datasets back together
+d_all <- d_up %>% select(subject_id, country, age_sc, age, years, unique) %>%
+  left_join(d_rmts %>% arrange(subject_id, trial_number) %>%
+              group_by(subject_id) %>% 
+              summarise(object_score = mean(object_score))) %>% # object_score1 = slice_head(object_score, n=1), 
+  left_join(d_fd %>% group_by(subject_id) %>% 
+              summarise(focal_score = mean(focal_score))) %>% 
+  left_join(d_ca %>% group_by(subject_id) %>% 
+              summarise(person_prop = mean(person_prop))) %>%
+  left_join(d_rmts %>% filter(trial_number==1) %>% 
+              rename(object_first = object_score) %>% select(subject_id, object_first))
+
+
+#do social tasks (UP & CA) pattern together? nah
+cor.test(d_all$unique, d_all$person_prop, na.rm=T) #no correlation
+
+social <- lm(person_prop ~ country * age_sc * unique,
+            data = d_all)
+summary(social) #country effect only; no effect of UP in predicting CA
+
+social2 <- glm(unique ~ country * age_sc * person_prop,
+            data = d_all,
+            family = "binomial")
+summary(social2) #trending interactions: country*person_prop(CA), age*person_prop(CA)
+
+d_all %>% ggplot(aes(x=age, y=person_prop, group=as.factor(country), color=as.factor(country))) + 
+  facet_wrap(. ~ unique) +
+  geom_point() #nothing clear
+
+# how does RR relate to other tasks? not
+
+#corrs
+cor.test(d_all$object_score, d_all$unique, na.rm=T) #no correlation
+cor.test(d_all$object_score, d_all$person_prop, na.rm=T) #no correlation
+cor.test(d_all$object_score, d_all$focal_score, na.rm=T) #trending correlation
+
+RR_pens <- lm(object_score ~ country * age_sc * unique, 
+            data = d_all)
+summary(RR_pens) #trending 3-way countryUS:age_sc:unique
+
+RR_attrib <- lm(object_score ~ country * age_sc * person_prop, 
+            data = d_all)
+summary(RR_attrib) #intercept only
+
+RR_fish <- lm(object_score ~ country * age_sc * focal_score, 
+            data = d_all)
+summary(RR_fish) #nada
+
+#pens plot
+d_all %>% ggplot(aes(x=age, y=object_score, group=as.factor(country), color=as.factor(country))) + 
+  facet_wrap(. ~ unique) +
+  geom_point() #nothing clear
+
+#mediation: no country/age effects on RMTS, so no relationship to be mediated
+
+```
+
+
+
+# Make mega plot 
+
+```{r}
+#prop_relation
+plot_rmds_d <- d_rmts %>% filter(!is.na(object_score)) %>%
+  group_by(subject_id, country, age) %>%
+  summarise(mean = mean(object_score)) %>%
+  mutate(Country = country,
+         prop_relation = 1-mean) %>% 
+  rename(response = prop_relation) %>% 
+  mutate(task = "RMTS")
+
+#mean_focal
+plot_fd_d <- d_fd %>% filter(!is.na(focal_score)) %>%
+  group_by(subject_id, country, age) %>%
+  summarise(mean_focal = mean(focal_score)) %>%
+  mutate(Country = country) %>% 
+  rename(response = mean_focal) %>% 
+  mutate(task = "Free Description")
+
+#unique
+plot_up_d <- d_up %>% filter(!is.na(unique)) %>%
+  mutate(Country = country) %>%
+  group_by(subject_id, country, age) %>% 
+  rename(response = unique) %>% 
+  mutate(trial_number = as.character(trial_number)) %>% 
+  mutate(task = "Uniqueness Preference")
+
+#person_prop
+plot_ca_d <-  d_ca %>% mutate(Country = country) %>% 
+  rename(response = person_prop) %>% 
+  mutate(trial_number = as.character(trial_number)) %>% 
+  mutate(task = "Causal Attribution")
+
+
+
+
+
+# Make Mega Plot
+bind_rows(plot_rmds_d, plot_fd_d, plot_up_d, plot_ca_d) %>% 
+  mutate(task = factor(task, levels = c("RMTS", "Free Description", "Uniqueness Preference", "Causal Attribution"))) %>% 
+  ggplot(aes(x=jitter(age,.1), y=response, group=Country, color=Country)) + 
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  scale_color_manual(values = c("red", "blue")) + 
+  facet_wrap(~task, scales = "free") + 
+  xlab("Age in months") + 
+  ylab("Proportion target response") + 
+  coord_cartesian(ylim = c(0, 1)) + 
+  theme(legend.position = "top")
+
+  
+
+
+
+
+
+  #flips y axisggplot(aes(x=jitter(age,.1), y=prop_relation, group=Country, color=Country)) + 
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  xlab("Age in months") + ylab("Proportion choosing relational match") 
+
+plot_fd_d <- d_fd %>% filter(!is.na(focal_score)) %>%
+  group_by(subject_id, country, age) %>%
+  summarise(mean_focal = mean(focal_score)) %>%
+  mutate(Country = country) + 
+   xlab("Age in months")
+
+
+
+%>%
+  ggplot(aes(x=age, y=mean_focal, group=Country, color=Country)) + 
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  ylim(0,1) + xlab("Age in months") + ylab("Proportion first mention focal")
+
+d_up %>% filter(!is.na(unique)) %>%
+  mutate(Country = country) %>%
+  group_by(subject_id, country, age) %>%
+  ggplot(aes(x=age, y=jitter(unique,.2), group=Country, color=Country)) + 
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  ylim(0,1) + xlab("Age in months") + ylab("Preference for unique option") +
+  scale_y_continuous(limits = c(0,1.2), breaks= seq(0,1.2,.25))
+
+ d_ca %>% mutate(Country = country) %>%
+  ggplot(aes(x = age, y = jitter(person_prop), group = Country, color = Country)) +
+  geom_point(alpha=.5) + geom_smooth() + theme_classic() +
+  xlab("Age in months") + ylab("Proportion person attributions") + 
+  theme(legend.position = "right")
+  #theme(legend.position = c(0.8, 0.2)) # more control (x,y = [0,1])
+
+```
+
+```{r}
+
+
+plot_rmds_d <- d_rmts %>% filter(!is.na(object_score)) %>%
+  group_by(subject_id, country, age) %>%
+  summarise(mean = mean(object_score)) %>%
+  mutate(Country = country,
+         prop_relation = 1-mean) %>% 
+  rename(response = prop_relation) %>% 
+  mutate(task = "RMTS")
+
+#mean_focal
+plot_fd_d <- d_fd %>% filter(!is.na(focal_score)) %>%
+  group_by(subject_id, country, age) %>%
+  summarise(mean_focal = mean(focal_score)) %>%
+  mutate(Country = country) %>% 
+  rename(response = mean_focal) %>% 
+  mutate(task = "Free Description")
+
+#unique
+plot_up_d <- d_up %>% filter(!is.na(unique)) %>%
+  mutate(Country = country) %>%
+  group_by(subject_id, country, age) %>% 
+  rename(response = unique) %>% 
+  mutate(trial_number = as.character(trial_number)) %>% 
+  mutate(task = "Uniqueness Preference")
+
+#person_prop
+plot_ca_d <-  d_ca %>% mutate(Country = country) %>% 
+  rename(response = person_prop) %>% 
+  mutate(trial_number = as.character(trial_number)) %>% 
+  mutate(task = "Causal Attribution")
+
+
+plot_d <- bind_rows(plot_rmds_d, plot_fd_d, 
+                    plot_up_d, plot_ca_d)
+
+saveRDS(plot_d, here("cached_data/plot_d.Rds"))
+
+
+
+loess_span = 1
+
+
+
+
+plot_rmts <- plot_d %>% 
+  filter(task == "RMTS") %>% 
+  ggplot(aes(x=jitter(age,.1), y=response, group=Country, color=Country)) + 
+  geom_point(alpha=.5) + 
+  geom_smooth(method = "loess", span = loess_span) + 
+  theme_classic() +
+  scale_color_manual(values = c("red", "blue")) + 
+  #theme(legend.position = "none") +
+  coord_cartesian(ylim = c(0, 1))+
+  #xlab("Age in months") + 
+  xlab("") +
+  ylab("Proportion choosing relational match") + 
+  labs(title = "RMTS") + 
+theme(plot.title = element_text(hjust = 0.5, size = 9), 
+      axis.title=element_text(size=8))
+
+
+plot_fd <- plot_d %>% 
+  filter(task == "Free Description") %>% 
+  ggplot(aes(x=jitter(age,.1), y=response, group=Country, color=Country)) + 
+  geom_point(alpha=.5) + 
+  geom_smooth(method = "loess", span = loess_span) + 
+  theme_classic() +
+  scale_color_manual(values = c("red", "blue")) +
+  coord_cartesian(ylim = c(0, 1))+
+  #theme(legend.position = "none", 
+  #      axis.title=element_text(size=8)) +
+  #xlab("Age in months") +
+  xlab("") +
+  ylab("Proportion first mention focal") + 
+  labs(title = "Free Description") + 
+theme(plot.title = element_text(hjust = 0.5, size = 9), 
+      axis.title=element_text(size=8))
+
+plot_up <- plot_d %>% 
+  filter(task == "Uniqueness Preference")  %>% 
+  ggplot(aes(x=jitter(age,.1), y=response, group=Country, color=Country)) + 
+  geom_point(alpha=.5) +  theme_classic() +
+  geom_smooth(method = "loess", span = loess_span) + 
+  scale_color_manual(values = c("red", "blue")) + 
+  coord_cartesian(ylim = c(0, 1))+
+ #theme(legend.position = "none", 
+#        axis.title=element_text(size=8)) +
+  #xlab("Age in months") + 
+  xlab("") +
+  ylab("Preference for unique option") +
+   labs(title = "Uniqueness Preference") + 
+ theme(plot.title = element_text(hjust = 0.5, size = 9), 
+       axis.title=element_text(size=8))
+
+plot_ca <- plot_d %>% 
+  filter(task == "Causal Attribution")  %>% 
+  ggplot(aes(x = age, y = jitter(response), group = Country, color = Country)) +
+  geom_point(alpha=.5) + theme_classic() +
+  geom_smooth(method = "loess", span = loess_span) + 
+  scale_color_manual(values = c("red", "blue")) + 
+  coord_cartesian(ylim = c(0, 1))+
+  #theme(legend.position = "none", 
+  #      axis.title=element_text(size=8)) +
+ #xlab("Age in months") + 
+  xlab("") +
+  ylab("Proportion person attributions") + 
+    labs(title = "Causal Attribution") + 
+  theme(plot.title = element_text(hjust = 0.5, size = 9), 
+        axis.title=element_text(size=8))
+
+
+library(patchwork)
+
+(plot_rmts + plot_fd) / (plot_ca + plot_up) + plot_layout(guides = 'collect') & theme(legend.position = "bottom") 
+```
+
+

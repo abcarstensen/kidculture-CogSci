@@ -1,0 +1,266 @@
+---
+title: "Cognitive diversity in context: US-China differences in children’s reasoning, visual attention, and social cognition"
+bibliography: library.bib
+csl: apa6.csl
+document-params: "10pt, letterpaper"
+
+author-information: > 
+    \author{Alexandra Carstensen$^{1}$ (abcarstensen@asu.edu), Anjie Cao$^{2}$  (anjiecao@stanford.edu), \\ \bf{Alvin W. M. Tan$^2$ (tanawm@stanford.edu)}, \bf{Di Liu$^3$ (dliu88@jh.edu)}, \bf{Yichun Liu$^4$ (18307110502@fudan.edu.cn)}, \\ \bf{Minh K. Bui$^5$ (mbui100@csu.fullerton.edu)}, \bf{Jiayi Wang-Zhao$^6$ (jiayiwang@fas.harvard.edu)}, \\ \bf{Ai Nghi Diep$^2$ (ainghi@stanford.edu)}, \bf{Qi Han$^2$ (qihan96@stanford.edu)}, \\ \bf{Michael C. Frank$^2$ (mcfrank@stanford.edu)}, and \bf{Caren M. Walker$^7$ (carenwalker@ucsd.edu)} \\
+    $^1$Psychology, School of Social and Behavioral Sciences, Arizona State University,
+    $^2$Psychology, Stanford University, \\
+    $^3$Psychological and Brain Sciences, Johns Hopkins University, 
+    $^4$Psychology, Fudan University, \\
+    $^5$Communication Sciences, CSU Fullerton, 
+    $^6$Psychology, Harvard University, 
+    $^7$Psychology, UC San Diego}
+
+
+abstract: >
+    Outward differences between cultures are very salient, with Western and East Asian cultures as a prominent comparison pair. A large literature describes cross-cultural variation in cognition, but relatively less research has explored the developmental origins of this variation. This study helps to fill the empirical gap by replicating four prominent findings documenting cross-cultural differences in children’s reasoning, visual attention, and social cognition in a cross-sectional sample of 240 3-12-year-olds from the US and China. We observe cross-cultural differences in three of the four tasks and describe the distinct developmental trajectory that each task follows throughout early and middle childhood. 
+    
+keywords: >
+    cognitive development; culture; variation; reasoning; attention; social cognition; US; China; replication.
+    
+output: cogsci2016::cogsci_paper
+nocite: '@*'
+final-submission: \cogscifinalcopy
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=3, fig.height=3, fig.crop = F, 
+                      fig.pos = "tb", fig.path='figs/',
+                      echo=F, warning=F, cache=F, 
+                      message=F, sanitize = T)
+```
+
+```{r, libraries}
+library(png)
+library(grid)
+library(ggplot2)
+library(xtable)
+library(here)
+library(patchwork)
+require(readxl)
+require(stringr)
+require(ggpubr)
+require(lme4)
+require(tidyverse)
+require(broom.mixed)
+
+
+# read through all the saved object
+flist <- list.files(here("cached_data"), pattern = "\\.Rds$", full.names = TRUE)
+all_res <- lapply(flist, readRDS)
+names(all_res) <- tools::file_path_sans_ext(basename(flist))
+plot_d <- all_res$plot_d
+```
+
+
+
+# Introduction 
+
+Learning and cognitive development are embedded in and shaped by cultural variation; children show sensitivity to and specialization for their unique perceptual environment before birth, discriminating familiar voices and languages [@decasper1980human; @moon1993two], and imitating the intonation of familiar languages within their first week [@mampe2009newborns]. Variation across cultures continues to play an important role in cognition over the lifespan, and while the literature documenting cross-cultural variation is extensive, much of this work is focused on differences between adults. How and when do these specific differences arise? 
+
+Perhaps the best developed empirical foundation for examining these questions is the contrast between Western and East Asian cultures, particularly the United States and China, which have become focal points for cultural difference comparisons [@muthukrishna2020beyond]. Previous research has described differences between US and Chinese populations in self-concepts [@spencer2009dialectical; @boucher2011dialectical], values [@ji2001culture; @kwan1997pancultural; @spencer2007culture], preferences [@corriveau2017cultural; @diyanni2015role; @liang2012effect], social cognition [@morris1994culture], similarity judgments [@ji2004culture], relational reasoning [@carstensen2019context; @cheng2020development; @richland2010young], language learning [@chan2011english; @tardif1996nouns; @waxman2016early], executive function [@sabbagh2006development; @tan2020chinese], and visual attention [@chua2005cultural; @ji2000culture; @waxman2016early], among others.
+
+Given the breadth, depth, and sheer volume of this research, it is difficult to synthesize the findings to understand the locus of causal mechanisms, the relationships between behavior in various tasks, and the sources of differences. For instance, while cultures are often viewed as collectivistic and individualistic to varying degrees, measurement of these constructs with individual people (the typical unit of measurement in cross-cultural comparisons) has proven problematic and often unreliable [e.g., @oyserman2002rethinking; @takemura2007two; for a review see @wong2018emperor], leading to the formulation of related but alternative cultural constructs at the level of individuals, like interdependent and independent self-construal [@markus1991culture; @singelis1994measurement], and holistic and analytic processing [@peng1999culture; @koo2018analytic]. However, across 10 measures of independent and interdependent social orientation and 10 of analytic and holistic cognitive style, @na2010cultural found little evidence that consistent individual differences underlie group-level cultural differences, complicating psychological explanations that link social organization to human cognition. One of the key challenges in this literature is that of mapping from country-level cultural constructs like collectivism to individual-level behavior measured in psychological tasks.
+
+Several proposals [e.g., @markus2010cultures; @miyamoto2013culture] address the complexities of mapping between abstract cultural features (e.g., Confucian-heritage philosophy) and individual behavior (e.g., tendency towards holistic processing). @miyamoto2013culture argues for multilevel analyses that bridge from the distal, societal factors most prominently discussed in the cultural psychology literature, to proximal situational processes (e.g., childhood experiences) that motivate differences in cognition. For example, the focused attention exemplified in American mothers’ child-directed speech might socialize children toward more analytic processing styles, compared to the more dynamic, relational play of Japanese mothers, which may scaffold toward more holistic cognitive processing. Because many cross-cultural differences emerge by the time that adults are college-aged, these proximal contexts are necessarily developmental contexts: they are the contact points between culturally specific experience (like growing up in a Confucian-heritage culture) and the cognitive differences that result from this variation (like a tendency toward holistic processing). Unfortunately, proximal contexts like these are not yet well documented. 
+
+We see a fundamental part of this puzzle as developmental: what cognitive mechanisms underlie behavioral differences, and what are the intermediate, proximal contexts in which children receive information about distal societal factors? When do various cross-cultural differences begin to appear, and what is the developmental trajectory to adulthood? As an initial step toward identifying these culture-specific learning environments and the processing mechanisms they support, research is needed to document the initial appearance of these differences, and their developmental progression. 
+
+## The present study
+
+In this work, we aim to replicate previously attested differences between children in the US and China and to measure the developmental trajectories of these differences. We build conceptually on work by @carstensen2019context showing that young children (1.5 -- 4.0 years) in the US and China follow unique developmental trajectories in relational reasoning. Our cross-sectional sample begins where this prior work left off, examining relational reasoning alongside visual attention and social reasoning tasks, which have been shown to differ across cultures in prior work. 
+
+We considered three main desiderata in our task selection: tasks must be short, appropriate for administration across a large range of ages, and theoretically implicated in relational reasoning [for a review of accounts linking relational reasoning to other cross-cultural differences, see @christie2020development]. We included measures of social reasoning and visual attention, building directly on the methods of a prior study with adults (Cao and Carstensen et al., in press). This prior work explored the robustness of attested cross-cultural differences across 12 experimental paradigms for adults, only 5 of which yielded robust differences in the predicted direction. This degree of reproducibility is consistent with large-scale reproducibility studies within psychology [@open2015estimating], but issues limiting replicability may well be more severe in developmental research, where they are much less explored [@frank2017collaborative; @gennetian2022open]. In summary, the present work serves two purposes: it is intended as one step of many toward a more robust developmental science, and as an initial step toward cognitive characterization of cross-cultural differences. 
+<!-- , and their sources, that is, the proximal contexts in which they are learned -->
+
+# Methods
+
+## Participants
+
+We recruited a cross-sectional sample of children between 3 and 12 years old through snowball sampling of parents seeded at large universities in the US and China. Researchers directly recruited some participants and those participants recruited others through referrals, social media sharing, and email forwarding at the researchers' request. Additional recruitment was conducted through lab databases (for US participants), social media posts (CN participants), and elementary schools (CN). Parents received a certificate of completion as a thank-you for participating in the study, and those recruited through databases that use parental compensation received a \$5 gift card. We recruited 240 children, 120 per country in the US and China, sampling 40 participants in each of three age ranges (3-6, 7-9, and 10-12 years old) from each cultural context.
+
+<!-- TODO: add when demogs are available
+We excluded data from any children who had lived abroad for more than 6 months (while over the age of 2 years) in regions where the majority culture was similar to the other sample, leading to ### exclusions from the US sample and ### from the Chinese sample. -->
+
+After exclusions, the US sample included `r filter(all_res$demog_excluded_country, country == "US")$n` children (`r filter(all_res$demog_gender, country == "US", gender == "Male")$n` male, `r filter(all_res$demog_gender, country == "US", gender == "Female")$n` female), all native speakers of English. The China sample included `r filter(all_res$demog_excluded_country, country == "CN")$n` children (`r filter(all_res$demog_gender, country == "CN", gender == "Male")$n` male, `r filter(all_res$demog_gender, country == "CN", gender == "Female")$n` female, `r filter(all_res$demog_gender, country == "CN", gender == "NA")$n` declined to answer), all native speakers of Mandarin Chinese. Additionally, we excluded participants from the analysis of individual tasks if they were missing more than 25% of the data from that task, failed to follow instructions, or showed a side bias (choosing the left or right option on all four trials of the relational reasoning task).
+<!--TODO: need to check if we do full subject exclusions or just individual tasks for missing data. Prereg says: If this [missing data/side bias exclusions] leads to 20% or more of participants being excluded, we will not apply this exclusion criteria to all data from the participant--only at the level of individual tasks.-->
+
+
+<!-- REV
+[### Sample demographics ###]
+
+Our final sample included US participants from ### of the 50 US states and Chinese participants from ### of the 34 Chinese provinces. [### SES??? ###]. Parent ed. MacArthur ladder. Languages spoken. -->
+
+## Procedure
+
+Participants were presented with a set of four tasks measuring relational reasoning, social reasoning, and visual attention, and their parents completed a family demographics questionnaire. An experimenter guided each child through the experiment via video call, with stimuli presented through a shared webpage. The experiment was administered in English for participants in the US, and in Mandarin Chinese for those in China, with both written and spoken instructions to minimize the effect of varied reading ability across children. Tasks were presented in a randomized order, with the exception of the Uniqueness Preference task. This task was always presented last to support the task cover story, which congratulated the child for nearing the end of the session. The experiment took about 20 minutes to complete. 
+
+## Tasks
+
+### Relational Preference (cRMTS)
+
+@carstensen2019context describe distinct developmental trajectories for relational reasoning performance in the US and China that correspond to different biases toward object-based and relational solutions. They measured relational and object bias in a causal relational match-to-sample (cRMTS) task, finding that 3-year-olds from the US preferred object-based solutions (e.g., blue cubes activate a machine) while those from China preferred relational solutions (e.g., pairs of different objects activate a machine). We use the same ambiguous cRMTS task, presenting evidence consistent with both object and relational solutions, to measure children’s bias from age 3 to 12 in both cultures. Our participants were shown two pairs of blocks exemplifying the different relation (schematically, AB and AC) that made a machine play music. They could then chose between an object-based solution (same pair AA) and a relational solution (different pair BC) to activate the machine in the test phase (see the procedure schematic in Figure 1. On the first test trial, the two choices recombined blocks presented during training into novel pairs composed of familiar blocks (AA vs. BC). We added three additional trials that each present a choice between the object-based solution (same pair AA) and novel relational solutions (different pairs DE, FG, HI), to provide multiple trials with each participant without exactly repeating the answer choices from the first trial.\footnote{NB: the first trial is truly ambiguous, forcing a choice between blocks that were all associated with machine activation during training but implement different relations, while the logic of the later trials necessarily relies on generalization from different pairs composed of novel instead of familiar blocks. This design is necessary to create additional test trials with block pairs distinct from the first trial.}
+
+```{r image, fig.env = "figure", fig.pos = "H", fig.align='center', fig.width=3.4, fig.height=3.4, set.cap.width=T, num.cols.cap=1, fig.cap = "Methods overview for the tasks measuring relational reasoning (1), visual attention (2), and social reasoning (3 and 4)."}
+img <- png::readPNG("figs/methods.png")
+grid::grid.raster(img)
+```
+
+### Picture Free Description
+
+In a classic study, @masuda2001attending showed that adults in the US and Japan focus on different elements of scenes when describing them from memory, with Japanese adults providing more information about the scene context and background, particularly at the beginning of their description. @imada2013east found similar differences between children: Japanese children provided more description of scene backgrounds and tended to describe peripheral and background elements of scenes first, while their US counterparts were more likely to mention the focal object first. Cao and Carstensen et al. [-@cao2021investigating] extended this work, documenting similar differences between adults in the US and China. Following Cao and Carstensen et al. [-@cao2021investigating], we showed our participants seven images from the @imada2013east study, each for 15 seconds, and then asked them to describe what they saw, prompting for additional information up to three times (e.g., “Anything else?”, “Is that all?”) and moving on after the third prompt or when the child agreed their description was complete. We coded the first item mentioned in each description (focal or background) and completed a detailed coding of the full description following the original Michigan Fish Task protocol [@masuda2001attending].
+
+### Causal Attribution
+
+East Asians are more likely than people from Western countries to make attributions about behavior that reference specifics of a particular situation, compared with dispositions of a particular person (Morris & Peng, 1994; for replication, see Cao and Carstensen et al., in press). For example, @seiver2013did found that when children were asked to explain why two children engaged in one activity and avoided another (highlighting situational constraints), 6-year-old children from the US were equally likely to make personal and situational attributions, neglecting the evidence in favor of situational causes. We replicated this work, which showed a series of four short vignettes to participants. In these vignettes, two children both jumped into a pool, while neither of them played on a bicycle. We asked participants to explain why each child in the vignette refused to play with the bicycle, explicitly prompting for personal or situational attributions (e.g., “Why didn't Kelly play on the bicycle? Is it because she is the kind of person who gets scared, or because the bicycle is dangerous to play on?”). For each trial, we coded the number of personal and situational attributions.
+
+### Uniqueness Preference
+
+@kim1999deviance measured cultural preferences for harmony or uniqueness by offering participants five pens in two colors, and found that European American adults showed a stronger preference for the uncommon color than those from East Asia. Cao and Carstensen et al. [-@cao2021investigating] created an online adaptation of this task by asking participants to choose between digital dinosaur stickers instead of pens, but did not find differing preferences between adults in the US and China, perhaps because adult participants were insufficiently motivated to meaningfully engage in this digital sticker choice. Here, we assess whether children engage differently with this kid-friendly adaptation. Throughout the experiment, children received digital stickers for each task they completed, which were collected in a virtual sticker book. In this task, we congratulated each child on nearing the end of their experimental session and announced that they got to pick their sticker. Five dinosaur stickers appeared on screen, identical except that one was a unique color (e.g. four blue stickers and one yellow). The experimenter told the child to pick the sticker they wanted. They then played a guessing game where the experimenter moused over stickers from left to right (they appeared in random positions) and the child told them to stop when they reached the intended sticker. We coded whether participants chose a sticker with the repeated or unique color. 
+
+```{r mega_fig, fig.env = "figure*", fig.pos = "h!", fig.width=8, fig.height=6, out.width="100%", fig.align = "center", set.cap.width=T, num.cols.cap=2, fig.cap = "Developmental trajectories in all four tasks. Each dot summarizes data from one child in our cross-sectional sample between 3 and 12 years, with age in months plotted along the x-axis. Children from the CN sample are shown in red and those from the US in blue, with LOESS fit lines colored accordingly."}
+
+loess_span = 1
+# axis_title_size = 6
+
+plot_rmts <- plot_d %>% 
+  filter(task == "RMTS") %>% 
+  ggplot(aes(x=jitter(age,.1), y=response, group=Country, color=Country)) + 
+  geom_point(alpha=.5) + 
+  geom_smooth(method = "loess", span = loess_span) + 
+  theme_classic() +
+  scale_color_manual(values = c("red", "blue")) + 
+  #theme(legend.position = "none") +
+  coord_cartesian(ylim = c(0, 1))+
+  xlab("Age in months") + 
+  #xlab("") +
+  ylab("Proportion relational match") + 
+  labs(title = "Relational preference") 
+# + 
+# theme(plot.title = element_text(hjust = 0.5, size = 9), 
+#       axis.title=element_text(size=axis_title_size))
+
+
+plot_fd <- plot_d %>% 
+  filter(task == "Free Description") %>% 
+  ggplot(aes(x=jitter(age,.1), y=response, group=Country, color=Country)) + 
+  geom_point(alpha=.5) + 
+  geom_smooth(method = "loess", span = loess_span) + 
+  theme_classic() +
+  scale_color_manual(values = c("red", "blue")) +
+  coord_cartesian(ylim = c(0, 1))+
+  #theme(legend.position = "none", 
+  #      axis.title=element_text(size=8)) +
+  xlab("Age in months") +
+  # xlab("") +
+  ylab("Proportion first mention focal") + 
+  labs(title = "Free description") 
+# # + 
+# theme(plot.title = element_text(hjust = 0.5, size = 9), 
+#       axis.title=element_text(size=axis_title_size))
+
+plot_up <- plot_d %>% 
+  filter(task == "Uniqueness Preference")  %>% 
+  ggplot(aes(x=jitter(age,.1), y=response, group=Country, color=Country)) + 
+  geom_point(alpha=.5) +  theme_classic() +
+  geom_smooth(method = "loess", span = loess_span) + 
+  scale_color_manual(values = c("red", "blue")) + 
+  coord_cartesian(ylim = c(0, 1))+
+ #theme(legend.position = "none", 
+#        axis.title=element_text(size=8)) +
+  xlab("Age in months") +
+  # xlab("") +
+  ylab("Choice of unique option") +
+   labs(title = "Uniqueness preference") 
+# + 
+#  theme(plot.title = element_text(hjust = 0.5, size = 9), 
+#        axis.title=element_text(size=axis_title_size))
+
+plot_ca <- plot_d %>% 
+  filter(task == "Causal Attribution")  %>% 
+  ggplot(aes(x = age, y = jitter(response), group = Country, color = Country)) +
+  geom_point(alpha=.5) + theme_classic() +
+  geom_smooth(method = "loess", span = loess_span) + 
+  scale_color_manual(values = c("red", "blue")) + 
+  coord_cartesian(ylim = c(0, 1))+
+  #theme(legend.position = "none", 
+  #      axis.title=element_text(size=8)) +
+ xlab("Age in months") +
+  # xlab("") +
+  ylab("Proportion person attributions") + 
+    labs(title = "Causal attribution") 
+# + 
+#   theme(plot.title = element_text(hjust = 0.5, size = 9), 
+#         axis.title=element_text(size=axis_title_size))
+
+(plot_rmts + plot_fd) / (plot_ca + plot_up) + plot_layout(guides = 'collect') & theme(legend.position = "bottom") 
+```
+
+
+# Results
+
+We pre-registered the sample size and analyses, available at https://aspredicted.org/gy8k4.pdf. All data and analysis scripts are available at [blinded for review]. We diverged from analyses used in previous studies to follow a standardized analysis approach, fitting mixed effects models with maximal random effect structure for each task  [@barr2013random]. We adhered to our lab standard protocol of pruning random slopes and then random intercepts if a model failed to converge.
+
+Results from all tasks are shown in Figure 2, and we review findings from each below. 
+
+<!-- ## Individual task results -->
+
+
+## Relational Preference
+To examine whether children from the two countries show differing preferences for object- or relation-based reasoning, we used a logistic mixed effect model to predict response choice with country (CN/US), age (in months, and scaled), and their interaction as fixed effects. We did not find an effect of age or country on response bias  (US: *M* = `r filter(all_res$rmts_mean_all, country == "US")$mean_object_score`; CN: *M* = `r filter(all_res$rmts_mean_all, country == "CN")$mean_object_score`). Following our preregistration, we also fit a model to predict first trial choice with culture, age (months, scaled), and their interaction as fixed effects, but did not find any effects (US: M = `r filter(all_res$rmts_mean_first_trial, country == "US")$mean_object_score`; CN: M = `r filter(all_res$rmts_mean_first_trial, country == "CN")$mean_object_score`). 
+
+<!-- Although we found no effect in the main regression model, the proportion of children’s choice types seemed to follow different patterns as a function of their age. We ran an exploratory analysis testing whether there was a curvilinear relationship between age and response choice for each cultural group respectively, with fixed-effect logistic regressions fitting first-trial responses with 2-degree polynomial of age (months, scaled). We found a qualitative difference between cultures with the fit being polynomial for the US group ($\beta =$ `r filter(all_res$rmts_explore_model, term == "poly(age_sc, 2)2")$estimate`, z = `r filter(all_res$rmts_explore_model, term == "poly(age_sc, 2)2")$statistic`, p = `r filter(all_res$rmts_explore_model, term == "poly(age_sc, 2)2")$p.value`) but not for the CN group.  -->
+
+## Picture Free Description
+This task investigated whether children from the US and China differ in their visual attention, which is reflected in the content of their description. Following Imada et al. (2013), we coded whether the first item children mentioned was the focal object or part of the background. We predicted this first mentioned item (focal or background) with a mixed-effect logistic regression model using cultural context, age (months, scaled), and their interaction as fixed effects. Random intercepts for each subject and trial number were also included in the model, as well as random slopes by-trial for cultural context. This model failed to converge and we pruned the by-trial random slopes. There was a main effect of country in the predicted direction, with US children producing more focal first mentions (US: *M* = `r filter(all_res$fd_first_mention_mean, country == "US")$mean_score`; CN: *M* = `r filter(all_res$fd_first_mention_mean, country == "CN")$mean_score`; $\beta =$ `r filter(all_res$fd_first_mention_model, term == "countryUS")$estimate`, z = `r filter(all_res$fd_first_mention_model, term == "countryUS")$statistic`, p = `r filter(all_res$fd_first_mention_model, term == "countryUS")$p.value`). For the full description, we ran a Poisson regression model to predict the number of references children made to any part of the scene per trial with interaction between description type (focal/background), cultural context (CN/US), and age (months, scaled) as fixed effects, subject and trial number as random effects, by-subject random slopes for description type and by-trial random slopes for cultural context. This model did not converge either, and we pruned the by-trial random slopes. All of the main effects and two-way interactions were significant, with effects resembling that in the first mention analysis (all *p* < .05). 
+<!--TODO: add results-->
+<!--[ADD additional detailed results as in Masuda & Nisbett if space allows]-->
+
+## Causal Attribution
+To examine whether Chinese and US children differ in their tendency to make situational or personal attributions, we ran a mixed-effects Poisson regression predicting number of situational attributions with cultural context, age (months, scaled), and their interaction as fixed effects, subject and trial number as random effects, and random slopes by-trial for culture. This model did not converge. Following standard procedure, we iteratively pruned the model to only include the fixed effect of cultural context, age, and their interaction, and the intercept of subject. We found main effects of both country (US: *M* = `r filter(all_res$ca_situational_mean, country == "US")$mean`; CN: *M* = `r filter(all_res$ca_situational_mean, country == "CN")$mean`; $\beta =$ `r filter(all_res$ca_model, term == "countryUS")$estimate`, z = `r filter(all_res$ca_model, term == "countryUS")$statistic`, p = `r filter(all_res$ca_model, term == "countryUS")$p.value`) and age ($\beta =$ `r filter(all_res$ca_model, term == "age_sc")$estimate`, z = `r filter(all_res$ca_model, term == "age_sc")$statistic`, p = `r filter(all_res$ca_model, term == "age_sc")$p.value`). Consistent with our prediction, we found that US children tended to make fewer situation attributions than their peers in China, though situational attributions increased with age in both cultural contexts.
+
+## Uniqueness Preference
+For this task, we asked whether children from China and the US exhibit varying preferences for uniqueness or harmony. We ran a simple logistic regression predicting participants’ choice (unique vs. non-unique sticker) with cultural context (US or China), age (months, scaled), and their interaction as fixed effects. We found a significant effect of cultural context such that Chinese participants were more likely to choose the unique sticker (US: *M* = `r filter(all_res$up_mean, country == "US")$mean`; CN: *M* = `r filter(all_res$up_mean, country == "CN")$mean`; $\beta =$ `r filter(all_res$up_model, term == "countryUS")$estimate`, z = `r filter(all_res$up_model, term == "countryUS")$statistic`, p = `r filter(all_res$up_model, term == "countryUS")$p.value`). This finding contradicts both previous findings with a related paradigm in which US adults were more likely to choose the unique object (Kim & Markus, 1999) and our own finding in an identical task with adults, where we observed no difference by country. 
+<!-- Intriguingly, this reversed finding is consistent with an alternative construal of the task goal, which we review in the discussion. -->
+
+# Discussion
+
+Outward differences between cultures are very salient, with Western and East Asian cultures as a prominent comparison pair. The cognitive underpinnings of these differences have been extensively studied, with an increasing focus on the developmental origins of cultural differences. As an attempt to synthesize this literature, here we conducted replications -- with varying degrees of fidelity to the original -- of four prominent findings regarding US-China differences in social and cognitive development. Overall we found evidence for cultural differences in three of these (picture free description, causal attribution, and uniqueness preference), though one effect (uniqueness) went in the opposite of the predicted direction. 
+
+Previous work has documented a marked cross-cultural difference in preferences for object-based or relational solutions in the relational reasoning task we used (the ambiguous cRMTS paradigm) between 3.0 and 4.0 years of age: preschoolers in the US preferred object-based solutions and those in China preferring relational solutions [@carstensen2019context]. By adulthood, participants in both countries select at chance between these options, showing no evidence of a relational bias, perhaps reflecting awareness of the ambiguous training data (Carstensen & Cao et al., 2021, in press). Here, we sought to document the transition from differently biased preschoolers to similar adult performance across the two countries, alongside three other tasks that show cross-cultural variation in skills implicated in relational reasoning [e.g., @christie2020development]. Our data suggests that this convergence happens quickly: we did not see cross-cultural differences between the youngest children in our samples. However, representation within our cross-sectional convenience sample is especially sparse below age 4 (i.e. `r filter(all_res$demog_youngkids, country == "US")$n` US children, `r filter(all_res$demog_youngkids, country == "CN")$n` CN children), limiting our ability to detect differences at this age. Intriguingly, the developmental pattern we observe shows similar, increasing preferences for relational solutions in both groups until about 9 years of age, and then a fall back towards the adult pattern with no bias. 
+
+The other three tasks showed cross-cultural differences that varied in their emergence and progression. In the free description task, we observed a general preference for focal first mentions: children from both countries tended to start their descriptions by referencing the focal object throughout early and middle childhood, but this tendency was stronger among the US children. Although we see a consistent cross-cultural difference in this task, the magnitude of the effect never approaches that of adults in Cao & Carstensen et al (in press), where 90% of first mentions were focal among US adults but CN adults showed a flat distribution with roughly equal likelihood of mentioning the focal object or the background (Standardized mean differences between culture: Adults: 1.57; Children: `r round(all_res$fd_smd, 2)`). Our finding indicates a continuity in this preference over development in early and middle childhood, but also suggests that the cultural difference becomes more pronounced and reliable with age. This gradual development likely reflects the increasing influence of culturally specific practices that reinforce different psychological tendencies as children grow.
+
+In both of our social reasoning tasks, causal attribution and uniqueness preference, cross-cultural differences are most evident in the middle of our cross-sectional sample. In the causal attribution task, these differences peak between 8 and 9 years, when US children made the most personal attributions. This trajectory in US participants is similar to that observed in @gopnik2017changes, who showed a consistent level of situation attributions across ages when the task suggested personal causes, but a varying trajectory in the condition suggestive of situational causes. Specifically, they showed that the youngest and oldest children in their sample were most sensitive to situational information, with 4-year-olds and 12--14-year-olds providing more situational attributions than children in the interceding years and adults. They explained this U-shaped development by suggesting that young children are the most data-driven learners, with weaker prior biases because of their limited experience. With time and exposure to cultural practices, children in the US gradually develop and strengthen a bias toward personal explanations for behavior. However, as they approach adolescence, an important period for social learning, children become more sensitive to social information in particular, responding once again like the more data-driven 4-year-olds in a way that is consistent with the situational evidence in the task.<!--Interestingly, the peak in personal attribution among US children in our study, around 8.5 years, appears later than reported in Gopnik et al. (ibid), where children are most likely to show personal attribution around the age of 6 years.\footnote{Alternatively, it is possible that this apparent discrepancy is an artifact of the discontinuous age sampling in Gopnik et al. (2017).} 
+--> In contrast, Chinese children in our study show a consistent level of situational attributions throughout -- much like US children in the person bias condition of Gopnik et al (ibid). Taken together, these findings suggest that culturally-specific learning environments may interact with age-related changes in cognitive flexibility to shape the developmental trajectory of social reasoning about causation. 
+
+As in causal attribution, the cultural differences in our uniqueness preference task peaked between about 8 and 9 years of age, but with an effect in the opposite of the predicted direction: while all children showed a general preference to choose the unique sticker well above chance, Chinese children did so to a greater extent than those in the US. One possible explanation for this surprising finding is that children may have construed our task as one of cooperation. To accommodate young children, experimenters controlled the cursor during the experiment, so children were encouraged to select a sticker and keep it in mind while the experimenter “guessed” which sticker they had chosen, mousing over the randomized array from left to right. Because there were four identical stickers and one unique sticker, some children may have realized that choosing the unique sticker would be the most cooperative action since it would be the easiest to communicate about, cutting short the guessing game. Indeed, many of the school-age children, and especially those from China, volunteered that they had chosen the unique sticker (e.g., “The yellow one!”) before or during the guessing phase<!--ADD SUMMARY STATS)-->. Accordingly, performance in this task may not reflect preferences for unique or harmonious choices, but rather children’s interest in responding cooperatively -- and awareness of the opportunity to do so -- by choosing something that is easy to talk about. The cultural differences we observed in this task could therefore be indicative of cultural norms influencing children's behavior in cooperative settings, which is consistent with previous findings showing that children growing up in collectivistic cultural contexts are more attuned to others’ goals and motivated to offer help [@de2014cultural; @stewart2000influences]. 
+
+In summary, the emergence of cross-cultural differences follows a unique trajectory in each of these tasks. We did not observe cross-cultural differences in relational bias at any point in our cross-sectional sample, though we did document a commonality in the initial drift towards a relational preference and then back toward adult performance, with no bias in either country. In visual attention, we observed gradual, increasing differences between 3 and 12 years. In contrast, the two social reasoning tasks showed the most pronounced differences near the middle of our cross-sectional sample. Specifically, in causal attribution, there was a divergence in performance that peaks between 8 and 9 years, while choices in our uniqueness preference task showed more gradual change and the largest differences during elementary years. 
+
+Our task selection was guided by an interest in the cognitive mechanisms underpinning behavioral differences across cultures and the proximal environmental contexts that shape the use of these mechanisms. Further work is needed to identify these mechanisms and their sources, but across our tasks, we observe the earliest differences within visual attention, lending preliminary support to the view that cross-cultural differences in the visual domain may play a role in scaffolding later variation in social cognition (see, e.g., Masuda & Nisbett, 2001).
+ 
+This study followed prior work, and accordingly shared some of the limitations in the work. We had a relatively large sample of children compared with other developmental research in this literature, but -- given our broad age range -- our estimates for any particular age group lack precision. In addition, many of the tasks we replicated had only one or a small number of trials, further limiting precision of measurement for individuals, and limiting the maximum correlation between tasks that could be found. Finally, our sampling process treated the US and China as relatively monolithic cultures, while in fact there is substantial within-culture variation in both countries. 
+
+These findings highlight the importance of measurement for understanding cross-cultural differences over development. Each task in our study has a developmental trajectory of its own, and cultural comparisons must progress from an understanding of that dynamic process, rather than a snapshot of static differences. This point is especially important because sample variation both within and across cultures inevitably confounds measurement, compounding uncertainty about true differences between populations. Researchers must first establish that a task is stable by age, gender, and other sociodemographic factors before it is possible to make inferences about an observed difference. 
+
+This work provides a broad survey of performance across cultural contexts and childhood development, but further work is needed to address individual differences (within and between tasks and domains of cognition more broadly) and longitudinal change in individuals. Nonetheless, by documenting population-level variation over development, this study can inform identification of the mechanisms (shared or unique) that underlie variation and change in reasoning, visual attention, and social cognition over time and across contexts. We hope that consistent, larger scale developmental work of the kind we present here can provide steps toward a robust foundation for cross-cultural developmental science. 
+
+
+# Acknowledgements
+
+We would like to acknowledge Toshie Imada for kindly sharing materials, and the Language and Cognition Lab and Culture Collab group at Stanford University for helpful feedback on early versions of this work. This study was funded in part by awards from the McDonnell Foundation and the Center for the Study of Language and Information at Stanford University supporting A. Carstensen, and an NSF CAREER Award to C. Walker.
+
+# References 
+
+```{r}
+# References will be generated automatically by Pandoc and included here.
+# The following code is some latex to format the bibliography. Do not remove it.
+```
+
+\setlength{\parindent}{-0.1in} 
+\setlength{\leftskip}{0.125in}
+\noindent
